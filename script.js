@@ -1,5 +1,5 @@
-// Your unique "Secret iCal Address" is pasted here
-const ICAL_URL = 'https://calendar.google.com/calendar/ical/ilsi4rnri8qtq4c%40group.calendar.google.com/private-2702f2b45bcbfe0dbf0256bedac6f46a/basic.ics';
+// THIS IS THE FIX: Replaced "%40" with "@" to prevent double-encoding.
+const ICAL_URL = 'https://calendar.google.com/calendar/ical/ilsi4rnri8qtq4c@group.calendar.google.com/private-2702f2b45bcbfe0dbf0256bedac6f46a/basic.ics';
 
 
 // Run the script once the page is loaded
@@ -8,19 +8,20 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function fetchCalendar() {
-    // THIS IS THE FIX: We are using a different, simpler proxy.
+    // We are still using the proxy
     const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(ICAL_URL)}`;
 
     try {
         // We now fetch the new proxy URL
         const response = await fetch(proxyUrl); 
         if (!response.ok) {
+            // This is the error you saw in the console
             throw new Error('Failed to fetch calendar. Check the iCal URL.');
         }
         const data = await response.text();
         
         // Parse the iCal data
-        const jcalData = ICAL.parse(data); // This line was causing the error
+        const jcalData = ICAL.parse(data);
         const comp = new ICAL.Component(jcalData);
         const vevents = comp.getAllSubcomponents('vevent');
 
@@ -82,7 +83,7 @@ function generateAvailabilityList(busyDates) {
             
             const dateString = currentDate.toISOString().split('T')[0];
             const li = document.createElement('li');
-            li.textContent = currentDate.toLocaleString('en-GB', dateOptions);
+            li.textContent = currentDate.toLocaleDateString('en-GB', dateOptions);
 
             // Check if this date is in our busy Set
             if (busyDates.has(dateString)) {
