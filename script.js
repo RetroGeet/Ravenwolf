@@ -8,11 +8,11 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function fetchCalendar() {
-    // THIS IS THE FIX: We use a proxy to get around the CORS security error.
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(ICAL_URL)}`;
+    // THIS IS THE FIX: We are using a different, simpler proxy.
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(ICAL_URL)}`;
 
     try {
-        // We now fetch the proxy URL instead of the direct iCal URL
+        // We now fetch the new proxy URL
         const response = await fetch(proxyUrl); 
         if (!response.ok) {
             throw new Error('Failed to fetch calendar. Check the iCal URL.');
@@ -20,7 +20,7 @@ async function fetchCalendar() {
         const data = await response.text();
         
         // Parse the iCal data
-        const jcalData = ICAL.parse(data);
+        const jcalData = ICAL.parse(data); // This line was causing the error
         const comp = new ICAL.Component(jcalData);
         const vevents = comp.getAllSubcomponents('vevent');
 
