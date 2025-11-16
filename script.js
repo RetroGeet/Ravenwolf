@@ -1,4 +1,4 @@
-// THIS IS THE FIX: Pasted the full, correct calendar ID that I had previously shortened by mistake.
+// Your unique "Secret iCal Address"
 const ICAL_URL = 'https://calendar.google.com/calendar/ical/ilsi4rnri8qtqnn95rsitlbq4c@group.calendar.google.com/private-2702f2b45bcbfe0dbf0256bedac6f46a/basic.ics';
 
 
@@ -29,14 +29,25 @@ async function fetchCalendar() {
         const busyDates = new Set();
         vevents.forEach(vevent => {
             const event = new ICAL.Event(vevent);
-            const startDate = event.startDate.toJSDate();
+
+            // ⬇️ ⬇️ ⬇️ THIS IS THE SECTION THAT HAS BEEN FIXED ⬇️ ⬇️ ⬇️
             
-            // Handle multi-day events
+            const startDate = event.startDate.toJSDate();
             const endDate = event.endDate.toJSDate();
-            // For all-day events, endDate is the start of the *next* day, so this loop works
-            for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
-                busyDates.add(d.toISOString().split('T')[0]); // Add 'YYYY-MM-DD' format
+
+            // Normalize the start date to midnight (to handle timed events)
+            let loopDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+
+            // Loop from the normalized start date until we are no longer before the end date
+            while (loopDate < endDate) {
+                // Add the current date (in YYYY-MM-DD format) to the busy set
+                // We must convert to ISO string and split to avoid timezone issues
+                busyDates.add(loopDate.toISOString().split('T')[0]);
+                
+                // Increment the loop date by one day
+                loopDate.setDate(loopDate.getDate() + 1);
             }
+            // ⬆️ ⬆️ ⬆️ THIS IS THE SECTION THAT HAS BEEN FIXED ⬆️ ⬆️ ⬆️
         });
 
         // Now, generate the list of Fridays and Saturdays
@@ -83,7 +94,7 @@ function generateAvailabilityList(busyDates) {
             
             const dateString = currentDate.toISOString().split('T')[0];
             const li = document.createElement('li');
-            li.textContent = currentDate.toLocaleDateString('en-GB', dateOptions);
+            li.textContent = currentDate.toLocaleString('en-GB', dateOptions);
 
             // Check if this date is in our busy Set
             if (busyDates.has(dateString)) {
