@@ -1,5 +1,5 @@
-// THIS IS THE FIX: Replaced "%40" with "@" to prevent double-encoding.
-const ICAL_URL = 'https://calendar.google.com/calendar/ical/ilsi4rnri8qtq4c@group.calendar.google.com/private-2702f2b45bcbfe0dbf0256bedac6f46a/basic.ics';
+// THIS IS THE FIX: Pasted the full, correct calendar ID that I had previously shortened by mistake.
+const ICAL_URL = 'https://calendar.google.com/calendar/ical/ilsi4rnri8qtqnn95rsitlbq4c@group.calendar.google.com/private-2702f2b45bcbfe0dbf0256bedac6f46a/basic.ics';
 
 
 // Run the script once the page is loaded
