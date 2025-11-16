@@ -15,7 +15,6 @@ async function fetchCalendar() {
         // We now fetch the new proxy URL
         const response = await fetch(proxyUrl); 
         if (!response.ok) {
-            // This is the error you saw in the console
             throw new Error('Failed to fetch calendar. Check the iCal URL.');
         }
         const data = await response.text();
@@ -29,25 +28,24 @@ async function fetchCalendar() {
         const busyDates = new Set();
         vevents.forEach(vevent => {
             const event = new ICAL.Event(vevent);
-
-            // ⬇️ ⬇️ ⬇️ THIS IS THE SECTION THAT HAS BEEN FIXED ⬇️ ⬇️ ⬇️
-            
             const startDate = event.startDate.toJSDate();
             const endDate = event.endDate.toJSDate();
 
-            // Normalize the start date to midnight (to handle timed events)
+            // Normalize the start date to midnight (local time)
             let loopDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
 
             // Loop from the normalized start date until we are no longer before the end date
             while (loopDate < endDate) {
-                // Add the current date (in YYYY-MM-DD format) to the busy set
-                // We must convert to ISO string and split to avoid timezone issues
-                busyDates.add(loopDate.toISOString().split('T')[0]);
+                
+                // ⬇️ ⬇️ ⬇️ THIS IS THE FIX ⬇️ ⬇️ ⬇️
+                // Format the date string manually to avoid UTC conversion errors
+                const dateString = toYYYYMMDD(loopDate);
+                busyDates.add(dateString);
+                // ⬆️ ⬆️ ⬆️ THIS IS THE FIX ⬆️ ⬆️ ⬆️
                 
                 // Increment the loop date by one day
                 loopDate.setDate(loopDate.getDate() + 1);
             }
-            // ⬆️ ⬆️ ⬆️ THIS IS THE SECTION THAT HAS BEEN FIXED ⬆️ ⬆️ ⬆️
         });
 
         // Now, generate the list of Fridays and Saturdays
@@ -92,7 +90,11 @@ function generateAvailabilityList(busyDates) {
                 listElement.appendChild(monthHeader);
             }
             
-            const dateString = currentDate.toISOString().split('T')[0];
+            // ⬇️ ⬇️ ⬇️ THIS IS THE SECOND FIX ⬇️ ⬇️ ⬇️
+            // Format the date string manually to match the Set
+            const dateString = toYYYYMMDD(currentDate);
+            // ⬆️ ⬆️ ⬆️ THIS IS THE SECOND FIX ⬆️ ⬆️ ⬆️
+
             const li = document.createElement('li');
             li.textContent = currentDate.toLocaleString('en-GB', dateOptions);
 
@@ -114,3 +116,14 @@ function generateAvailabilityList(busyDates) {
     // Hide the "Loading..." message
     document.getElementById('loading').style.display = 'none';
 }
+
+
+// ⬇️ ⬇️ ⬇️ THIS IS THE NEW HELPER FUNCTION ⬇️ ⬇️ ⬇️
+// Formats a Date object as 'YYYY-MM-DD' in local time
+function toYYYYMMDD(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0'); // +1 because month is 0-indexed
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+// ⬆️ ⬆️ ⬆️ THIS IS THE NEW HELPER FUNCTION ⬆️ ⬆️ ⬆️
