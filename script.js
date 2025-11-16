@@ -1,5 +1,5 @@
 // Your unique "Secret iCal Address" is pasted here
-const ICAL_URL = 'https://calendar.google.com/calendar/ical/ilsi4rnri8qtqnn95rsitlbq4c%40group.calendar.google.com/private-2702f2b45bcbfe0dbf0256bedac6f46a/basic.ics';
+const ICAL_URL = 'https://calendar.google.com/calendar/ical/ilsi4rnri8qtq4c%40group.calendar.google.com/private-2702f2b45bcbfe0dbf0256bedac6f46a/basic.ics';
 
 
 // Run the script once the page is loaded
@@ -8,8 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function fetchCalendar() {
+    // THIS IS THE FIX: We use a proxy to get around the CORS security error.
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(ICAL_URL)}`;
+
     try {
-        const response = await fetch(ICAL_URL);
+        // We now fetch the proxy URL instead of the direct iCal URL
+        const response = await fetch(proxyUrl); 
         if (!response.ok) {
             throw new Error('Failed to fetch calendar. Check the iCal URL.');
         }
