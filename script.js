@@ -1,10 +1,10 @@
-# update_data.py (CORRECTED)
+# update_data.py (FINAL CORRECTION)
 
 import os
 import requests
 import json
 from icalendar import Calendar
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 def get_busy_dates(ical_url):
     # Fetch data (server-to-server)
@@ -27,22 +27,21 @@ def get_busy_dates(ical_url):
             dtstart = dtstart_comp.dt
             dtend = dtend_comp.dt
             
-            # --- FIX: Ensure dtend is a datetime object for comparison ---
-            if not isinstance(dtend, datetime):
-                # If dtend is a simple date (All-day event), convert it to midnight datetime
+            # --- FIX: Coerce both objects to datetime for comparison ---
+            
+            # 1. Normalize DTEND: If it's a simple date, convert it to datetime at midnight.
+            if isinstance(dtend, date) and not isinstance(dtend, datetime):
                 end_time_comparison = datetime.combine(dtend, datetime.min.time())
             else:
                 end_time_comparison = dtend
             
-            # Normalize dtstart to the beginning of the day for consistent loop start
-            if not isinstance(dtstart, datetime):
-                start_date_normalized = datetime.combine(dtstart, datetime.min.time())
+            # 2. Normalize DTSTART: Start the loop at the beginning of the start day.
+            if isinstance(dtstart, date) and not isinstance(dtstart, datetime):
+                 current_date = datetime.combine(dtstart, datetime.min.time())
             else:
-                start_date_normalized = datetime(dtstart.year, dtstart.month, dtstart.day)
+                 current_date = datetime(dtstart.year, dtstart.month, dtstart.day)
             
-            current_date = start_date_normalized
-            
-            # Loop condition now compares two normalized datetime objects
+            # Loop condition now compares two strictly defined datetime objects
             while current_date < end_time_comparison:
                 date_str = current_date.strftime('%Y-%m-%d')
                 busy_dates.add(date_str)
