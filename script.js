@@ -1,169 +1,68 @@
-// New Hybrid Script Logic
+# update_data.py (CORRECTED)
 
-// The old proxy URL is kept for the optional "live" attempt
-const ICAL_URL = 'https://calendar.google.com/calendar/ical/ilsi4rnri8qtqnn95rsitlbq4c@group.calendar.google.com/private-2702f2b45bcbfe0dbf0256bedac6f46a/basic.ics';
-const PROXY_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(ICAL_URL)}`;
+import os
+import requests
+import json
+from icalendar import Calendar
+from datetime import datetime, timedelta
 
-// The new local fallback file (the result of the GitHub Action)
-const FALLBACK_URL = '/data.json';
-const TIMEOUT_MS = 8000; // 8 seconds to wait for live proxy
+def get_busy_dates(ical_url):
+    # Fetch data (server-to-server)
+    try:
+        response = requests.get(ical_url, timeout=15)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching iCal URL: {e}")
+        return []
 
-// --- HELPER FUNCTION (Same as before, moved here) ---
-function toYYYYMMDD(date) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-}
+    cal = Calendar.from_ical(response.text)
+    busy_dates = set()
 
-// --- HYBRID FETCH LOGIC ---
-
-// 1. Attempts to get live data via the proxy with a timeout
-function fetchLiveCalendarWithTimeout(timeout) {
-    return new Promise((resolve, reject) => {
-        const timeoutId = setTimeout(() => reject(new Error('Live proxy connection timed out')), timeout);
-
-        fetch(PROXY_URL)
-            .then(response => {
-                clearTimeout(timeoutId);
-                if (!response.ok) throw new Error('Proxy returned an error status.');
-                // We expect ICS text if successful
-                return response.text(); 
-            })
-            .then(icsText => {
-                // We must parse the ICS text using the ical.js library
-                const jcalData = ICAL.parse(icsText);
-                const comp = new ICAL.Component(jcalData);
-                const vevents = comp.getAllSubcomponents('vevent');
+    for component in cal.walk('vevent'):
+        try:
+            dtstart_comp = component.get('dtstart')
+            dtend_comp = component.get('dtend')
+            if not dtstart_comp or not dtend_comp: continue
+            
+            dtstart = dtstart_comp.dt
+            dtend = dtend_comp.dt
+            
+            # --- FIX: Ensure dtend is a datetime object for comparison ---
+            if not isinstance(dtend, datetime):
+                # If dtend is a simple date (All-day event), convert it to midnight datetime
+                end_time_comparison = datetime.combine(dtend, datetime.min.time())
+            else:
+                end_time_comparison = dtend
+            
+            # Normalize dtstart to the beginning of the day for consistent loop start
+            if not isinstance(dtstart, datetime):
+                start_date_normalized = datetime.combine(dtstart, datetime.min.time())
+            else:
+                start_date_normalized = datetime(dtstart.year, dtstart.month, dtstart.day)
+            
+            current_date = start_date_normalized
+            
+            # Loop condition now compares two normalized datetime objects
+            while current_date < end_time_comparison:
+                date_str = current_date.strftime('%Y-%m-%d')
+                busy_dates.add(date_str)
+                current_date += timedelta(days=1)
                 
-                // Process the busy dates just like the Python script
-                const busyDates = new Set();
-                vevents.forEach(vevent => {
-                    const event = new ICAL.Event(vevent);
-                    const startDate = event.startDate.toJSDate();
-                    const endDate = event.endDate.toJSDate();
-
-                    let loopDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-
-                    while (loopDate < endDate) {
-                        busyDates.add(toYYYYMMDD(loopDate));
-                        loopDate.setDate(loopDate.getDate() + 1);
-                    }
-                });
-                // Return the final busy list array
-                resolve(Array.from(busyDates)); 
-            })
-            .catch(error => {
-                clearTimeout(timeoutId);
-                reject(error);
-            });
-    });
-}
-
-// 2. Attempts to get the local JSON file (the fallback)
-function fetchFallback() {
-    return fetch(FALLBACK_URL)
-        .then(response => {
-            if (!response.ok) throw new Error('Local data.json not found.');
-            // Expecting JSON array from the GitHub Action
-            return response.json(); 
-        });
-}
-
-
-// --- MAIN EXECUTION ---
-async function loadCalendarData() {
-    let busyDates = [];
-    let source = '';
-
-    try {
-        // RACE CONDITION: Try the live proxy. If it fails or times out, the catch block runs.
-        busyDates = await fetchLiveCalendarWithTimeout(TIMEOUT_MS);
-        source = 'Live (Fresh)';
-    } catch (liveError) {
-        console.warn('Live proxy failed or timed out. Falling back to local data.', liveError.message);
-        
-        try {
-            // FALLBACK: Load the local JSON file
-            busyDates = await fetchFallback();
-            source = `Nightly (${new Date().toLocaleDateString()})`;
-        } catch (fallbackError) {
-            // CRITICAL FAILURE
-            console.error('CRITICAL: Both live and fallback failed.', fallbackError);
-            document.getElementById('loading').innerHTML = '<p style="color: red;">Error: Cannot load calendar data from any source.</p>';
-            return;
-        }
-    }
-
-    // Pass the final busy list to the rendering function
-    generateAvailabilityList(busyDates, source);
-}
-
-// --- RENDERING FUNCTION (Largely Unchanged) ---
-function generateAvailabilityList(busyDatesArray, source) {
-    const listElement = document.getElementById('availability-list');
-    const loadingElement = document.getElementById('loading');
-    
-    // Convert array back to Set for fast lookup
-    const busyDates = new Set(busyDatesArray); 
-
-    const today = new Date();
-    // Start from the next Friday
-    const currentDate = new Date(today);
-    currentDate.setDate(today.getDate() + (5 - today.getDay() + 7) % 7); 
-
-    // Set the end date to Dec 31st of the next year
-    const endYear = today.getFullYear() + 1;
-    const finalDate = new Date(endYear, 11, 31);
-
-    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-
-    let currentMonth = -1;
-
-    // Loop through all days until the end date
-    while (currentDate <= finalDate) {
-        const dayOfWeek = currentDate.getDay();
-        
-        if (dayOfWeek === 5 || dayOfWeek === 6) {
+        except Exception as e:
+            # We will ignore errors caused by tricky recurrences and log them
+            print(f"Error processing event: {e}")
             
-            // Add a month header 
-            if (currentDate.getMonth() !== currentMonth) {
-                currentMonth = currentDate.getMonth();
-                const monthName = currentDate.toLocaleString('default', { month: 'long' });
-                const monthHeader = document.createElement('li');
-                monthHeader.innerHTML = `<h3>${monthName} ${currentDate.getFullYear()}</h3>`;
-                monthHeader.style.backgroundColor = '#eee';
-                monthHeader.style.textAlign = 'center';
-                listElement.appendChild(monthHeader);
-            }
-            
-            const dateString = toYYYYMMDD(currentDate);
-            const li = document.createElement('li');
-            li.textContent = currentDate.toLocaleString('en-GB', dateOptions);
+    return sorted(list(busy_dates))
 
-            if (busyDates.has(dateString)) {
-                li.classList.add('unavailable');
-                li.textContent += ' - UNAVAILABLE';
-            } else {
-                li.classList.add('available');
-                li.textContent += ' - AVAILABLE';
-            }
-            listElement.appendChild(li);
-        }
+# Get the secret URL from the GitHub environment variable
+ICAL_URL = os.environ.get('ICAL_SECRET_URL')
+if not ICAL_URL:
+    print("Error: ICAL_SECRET_URL is not set.")
+    exit(1)
 
-        currentDate.setDate(currentDate.getDate() + 1);
-    }
-    
-    // Add the source note at the end of the list
-    const sourceNote = document.createElement('li');
-    sourceNote.style.fontSize = '0.7em';
-    sourceNote.style.color = '#888';
-    sourceNote.textContent = `Data Source: ${source}`;
-    listElement.appendChild(sourceNote);
+# Generate the busy list and save it locally
+busy_list = get_busy_dates(ICAL_URL)
+with open('data.json', 'w') as f:
+    json.dump(busy_list, f, indent=4)
 
-
-    loadingElement.style.display = 'none';
-}
-
-// Start the whole process
-loadCalendarData();
+print(f"Successfully updated data.json with {len(busy_list)} busy dates.")
