@@ -1,4 +1,4 @@
-# update_data.py (FINAL CORRECTION)
+# update_data.py (FINAL, ROBUST CORRECTION)
 
 import os
 import requests
@@ -20,28 +20,28 @@ def get_busy_dates(ical_url):
 
     for component in cal.walk('vevent'):
         try:
-            dtstart_comp = component.get('dtstart')
-            dtend_comp = component.get('dtend')
-            if not dtstart_comp or not dtend_comp: continue
+            dtstart = component.get('dtstart').dt
+            dtend = component.get('dtend').dt
             
-            dtstart = dtstart_comp.dt
-            dtend = dtend_comp.dt
-            
-            # --- FIX: Coerce both objects to datetime for comparison ---
-            
-            # 1. Normalize DTEND: If it's a simple date, convert it to datetime at midnight.
-            if isinstance(dtend, date) and not isinstance(dtend, datetime):
+            # --- FIX 1: Normalize dtend to a naive datetime object ---
+            if isinstance(dtend, datetime):
+                # Strip any timezone info to make it "naive" (comparable)
+                end_time_comparison = dtend.replace(tzinfo=None) 
+            else:
+                # If it's a simple date, convert to datetime at midnight
                 end_time_comparison = datetime.combine(dtend, datetime.min.time())
-            else:
-                end_time_comparison = dtend
             
-            # 2. Normalize DTSTART: Start the loop at the beginning of the start day.
-            if isinstance(dtstart, date) and not isinstance(dtstart, datetime):
-                 current_date = datetime.combine(dtstart, datetime.min.time())
+            # --- FIX 2: Normalize dtstart and set loop start ---
+            if isinstance(dtstart, datetime):
+                # Strip timezone and normalize to midnight of the start day
+                start_date_normalized = datetime(dtstart.year, dtstart.month, dtstart.day)
             else:
-                 current_date = datetime(dtstart.year, dtstart.month, dtstart.day)
+                # Simple date converted to datetime at midnight
+                start_date_normalized = datetime.combine(dtstart, datetime.min.time())
             
-            # Loop condition now compares two strictly defined datetime objects
+            current_date = start_date_normalized
+            
+            # Loop condition now compares two strictly defined naive datetime objects
             while current_date < end_time_comparison:
                 date_str = current_date.strftime('%Y-%m-%d')
                 busy_dates.add(date_str)
@@ -49,6 +49,7 @@ def get_busy_dates(ical_url):
                 
         except Exception as e:
             # We will ignore errors caused by tricky recurrences and log them
+            # This is the line that will show the successful processing going forward
             print(f"Error processing event: {e}")
             
     return sorted(list(busy_dates))
