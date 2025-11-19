@@ -1,0 +1,38 @@
+# .github/workflows/update.yml
+
+name: Update Calendar Data
+
+on:
+  # Run nightly at 00:00 UTC (roughly 1am GMT / 2am BST)
+  schedule:
+    - cron: '0 0 * * *'
+  # Allows manual run from the "Actions" tab
+  workflow_dispatch:
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: pip install requests icalendar
+
+      - name: Run data update script
+        env:
+          # Passes the secret URL to the python script
+          ICAL_SECRET_URL: ${{ secrets.ICAL_SECRET_URL }}
+        run: python update_data.py
+        
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: '🤖 Automated: Update calendar data.json'
+          file_pattern: 'data.json'
+          branch: main
